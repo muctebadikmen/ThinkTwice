@@ -68,6 +68,7 @@ function DebatePageInner() {
   const scrollTrigger = `${phase}-${currentRound}-${done}`;
   const { targetRef: autoScrollRef } = useAutoScroll(scrollTrigger);
   const verdictRef = useRef<HTMLDivElement>(null);
+  const doneRef = useRef(false);
 
   // Auto-scroll to verdict when it starts
   useEffect(() => {
@@ -184,6 +185,7 @@ function DebatePageInner() {
 
       switch (event.type) {
         case 'done':
+          doneRef.current = true;
           setDone(true);
           setPhase('complete');
           setVerdictStreaming(false);
@@ -191,6 +193,7 @@ function DebatePageInner() {
           break;
 
         case 'error':
+          doneRef.current = true;
           setDone(true);
           es.close();
           break;
@@ -381,10 +384,16 @@ function DebatePageInner() {
     };
 
     es.onerror = () => {
-      es.close();
+      // Transient drop: let EventSource auto-reconnect. It resends Last-Event-ID
+      // and the server resumes after the last delivered event, so no duplication.
+      // Only stop retrying once the debate has actually finished.
+      if (doneRef.current) es.close();
     };
 
-    return () => es.close();
+    return () => {
+      doneRef.current = true;
+      es.close();
+    };
   }, [id]);
 
   const phaseLabel = (): string => {

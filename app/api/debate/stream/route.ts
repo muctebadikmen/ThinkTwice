@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
       const entry = debateStore.get(id);
       if (!entry) {
-        controller.enqueue(encoder.encode('data: {"type":"error","error":"Debate not found"}\n\n'));
+        controller.enqueue(encoder.encode('id: -1\ndata: {"type":"error","error":"Debate not found"}\n\n'));
         controller.close();
         return;
       }
@@ -41,18 +41,25 @@ export async function GET(req: NextRequest) {
         entry.abortTimer = null;
       }
 
-      let cursor = 0;
+      // Resume support: browsers auto-reconnect and send Last-Event-ID (the index
+      // of the last event they received). Resume after it so events are never
+      // resent — otherwise a reconnect would duplicate rounds and streamed text.
+      const lastEventId = req.headers.get('last-event-id');
+      const parsedId = lastEventId ? parseInt(lastEventId, 10) : NaN;
+      let cursor = Number.isFinite(parsedId)
+        ? Math.min(Math.max(parsedId + 1, 0), entry.events.length)
+        : 0;
 
       while (true) {
         // Drain any buffered events
         while (cursor < entry.events.length) {
-          controller.enqueue(encoder.encode(entry.events[cursor]));
+          controller.enqueue(encoder.encode('id: ' + cursor + '\n' + entry.events[cursor]));
           cursor++;
         }
 
         // If debate is done and we've sent everything, close
         if (entry.done && cursor >= entry.events.length) {
-          controller.enqueue(encoder.encode('data: {"type":"done"}\n\n'));
+          controller.enqueue(encoder.encode('id: ' + cursor + '\ndata: {"type":"done"}\n\n'));
           controller.close();
           return;
         }
