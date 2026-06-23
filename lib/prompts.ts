@@ -7,6 +7,13 @@ function languageInstruction(language: string): string {
   return `\n\nWrite your entire response in ${language} — all text, analysis, and formatting in ${language}.`;
 }
 
+// ── Helper: keep control markers in English even when writing in another language ─
+
+function markerInstruction(language: string): string {
+  if (!language || language.toLowerCase() === 'english') return '';
+  return `\n\nIMPORTANT: Write the control labels exactly in English — "QUESTION:", "VERDICT:", "CONTINUE:", and "SCORES:" — even though the rest of your response is written in ${language}. Only these label words stay in English; the text after each label is in ${language}.`;
+}
+
 // ── Helper: truncate a response to a max word count ─────────────────────────────
 
 function truncateResponse(text: string, maxWords: number): string {
@@ -154,7 +161,7 @@ Format your response exactly as follows — the line must start with "QUESTION:"
 
 QUESTION: [Your focused question addressing the user's challenge]
 
-Do NOT include any other text before or after the QUESTION line. Just the question.${languageInstruction(language)}`;
+Do NOT include any other text before or after the QUESTION line. Just the question.${languageInstruction(language)}${markerInstruction(language)}`;
   }
 
   if (isFirstRound) {
@@ -176,7 +183,7 @@ Format your response exactly as follows — the line must start with "QUESTION:"
 
 QUESTION: [Your focused question here]
 
-Do NOT include any other text before or after the QUESTION line. Just the question.${languageInstruction(language)}`;
+Do NOT include any other text before or after the QUESTION line. Just the question.${languageInstruction(language)}${markerInstruction(language)}`;
   }
 
   return `You are an impartial, highly analytical judge moderating a structured debate between advocates for the following options:
@@ -200,7 +207,7 @@ Format your response exactly as follows — the line must start with "QUESTION:"
 
 QUESTION: [Your focused follow-up question here]
 
-Do NOT include any other text before or after the QUESTION line. Just the question.${languageInstruction(language)}`;
+Do NOT include any other text before or after the QUESTION line. Just the question.${languageInstruction(language)}${markerInstruction(language)}`;
 }
 
 // ── 2. Advocate Response Prompt ────────────────────────────────────────────────
@@ -326,7 +333,7 @@ Replace each X with a score from 1-10.
 
 SCORES: ${options.map((o) => `[${o}]=X/10`).join(', ')}
 
-Replace each X with the Overall score for that option.${languageInstruction(language)}`;
+Replace each X with the Overall score for that option.${languageInstruction(language)}${markerInstruction(language)}`;
   }
 
   const clarificationBlock = autoMode
@@ -401,5 +408,5 @@ SCORES: ${options.map((o) => `[${o}]=X/10`).join(', ')}
 
 Replace each X with the Overall score for that option.
 
-Choose carefully. Only deliver a verdict if you are reasonably confident. If important angles remain unexplored, continue the debate.${languageInstruction(language)}`;
+Choose carefully. Only deliver a verdict if you are reasonably confident. If important angles remain unexplored, continue the debate.${languageInstruction(language)}${markerInstruction(language)}`;
 }
