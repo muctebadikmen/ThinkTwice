@@ -23,6 +23,7 @@ const DEFAULT_MAX_TURNS = 6;
  * it is forwarded unchanged so callers can override.
  */
 const MODEL_ALIASES: Record<string, string> = {
+  fable: 'claude-fable-5',
   opus: 'claude-opus-4-8',
   sonnet: 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5',
@@ -31,6 +32,38 @@ const MODEL_ALIASES: Record<string, string> = {
 export function resolveModel(model: string): string {
   const key = model.trim().toLowerCase();
   return MODEL_ALIASES[key] ?? model;
+}
+
+/**
+ * Error thrown when the `claude` CLI reports an API/auth/usage failure.
+ *
+ * The CLI signals these via a `result` event with `is_error: true` (often with
+ * an `api_error_status`). Previously we passed the error *text* downstream as if
+ * it were a real model response — so parse-prompt would try to `JSON.parse`
+ * "Failed to authenticate…" (cryptic SyntaxError) and advocates would literally
+ * "argue" the error string. Surfacing a typed error lets callers show the real
+ * cause (e.g. "log in to the claude CLI") instead of garbage.
+ */
+export class ClaudeRunnerError extends Error {
+  readonly apiErrorStatus?: number;
+  readonly isAuthError: boolean;
+
+  constructor(detail: string, apiErrorStatus?: number) {
+    const isAuth =
+      apiErrorStatus === 401 ||
+      apiErrorStatus === 403 ||
+      /authenticat|invalid.*credential/i.test(detail);
+
+    super(
+      isAuth
+        ? 'Claude authentication failed — the `claude` CLI is not logged in or its session has expired. Open a terminal, run `claude` to sign in (or `claude setup-token`), then try again.'
+        : `Claude CLI error${apiErrorStatus ? ` (HTTP ${apiErrorStatus})` : ''}: ${detail}`
+    );
+
+    this.name = 'ClaudeRunnerError';
+    this.apiErrorStatus = apiErrorStatus;
+    this.isAuthError = isAuth;
+  }
 }
 
 /**
@@ -161,6 +194,25 @@ export function runClaude(
 
         // result event signals completion — may contain the final text
         if (event.type === 'result') {
+          // First, detect API/auth/usage failures. The CLI exits 0 but sets
+          // is_error=true (and usually api_error_status) on the result event.
+          // Reject loudly rather than passing the error message through as a
+          // valid response.
+          const apiErrorStatus =
+            typeof event.api_error_status === 'number'
+              ? event.api_error_status
+              : undefined;
+          if (event.is_error === true || apiErrorStatus !== undefined) {
+            const detail =
+              extractResultText(event.result) || 'Claude CLI returned an error.';
+            cleanup();
+            if (!resolved) {
+              resolved = true;
+              reject(new ClaudeRunnerError(detail, apiErrorStatus));
+            }
+            return;
+          }
+
           const resultText = extractResultText(event.result);
 
           // Use the result text if it's more complete than what we streamed

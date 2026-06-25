@@ -142,8 +142,9 @@ async function startDebateJob(
   } catch (err) {
     const entry = debateStore.get(id);
     if (entry) {
-      entry.error = String(err);
-      entry.events.push('data: ' + JSON.stringify({ type: 'error', error: String(err) }) + '\n\n');
+      const message = err instanceof Error ? err.message : String(err);
+      entry.error = message;
+      entry.events.push('data: ' + JSON.stringify({ type: 'error', error: message }) + '\n\n');
       entry.resolve?.();
       entry.resolve = null;
     }
