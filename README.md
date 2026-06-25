@@ -46,19 +46,45 @@ You describe your decision
 
 ### Prerequisites
 
-1. **Node.js 18+**
-2. **Claude CLI** installed and authenticated:
+1. **Node.js 20+**
+2. **A Claude account** (Pro/Max subscription or API access) — debates run on *your* Claude account via the CLI, so there's no separate per-token billing from this app.
+3. **Claude CLI** installed:
    ```bash
    npm install -g @anthropic-ai/claude-code
-   claude  # Follow the auth prompts
    ```
 
-### Installation
+### 1. Authenticate the CLI for headless use (important!)
+
+ThinkTwice calls Claude **headlessly** (`claude -p …`) from its API routes. Being logged into the interactive `claude` CLI is **not enough** — headless calls need a long-lived token. Generate one:
 
 ```bash
-git clone https://github.com/mmd19999/ThinkTwice.git
+claude setup-token
+```
+
+Copy the printed token (`sk-ant-oat01-…`); you'll paste it into `.env.local` in the next step. It's valid for ~1 year.
+
+> ⚠️ Skip this and every debate fails with `401 Invalid authentication credentials` — even though `claude` shows you as logged in.
+
+### 2. Install & configure
+
+```bash
+git clone https://github.com/muctebadikmen/ThinkTwice.git
 cd ThinkTwice
 npm install
+cp .env.local.example .env.local   # then paste your token into .env.local
+```
+
+Your `.env.local` should look like:
+
+```bash
+CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-…your-token…
+```
+
+`.env.local` is gitignored, so your token is never committed.
+
+### 3. Run
+
+```bash
 npm run dev
 ```
 
