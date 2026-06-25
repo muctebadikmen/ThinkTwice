@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runClaude } from '@/lib/claude-runner';
+import { runClaude, ClaudeRunnerError } from '@/lib/claude-runner';
 
 /**
  * POST /api/parse-prompt
@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const lang = language?.trim() || 'English';
+
   const parsePrompt = `You are a decision analysis assistant. A user has described a decision they need help with in free-form text. Your job is to extract the structured components needed to run a debate.
 
 USER'S INPUT:
@@ -34,6 +36,8 @@ Analyze this and extract:
 2. **Context**: All relevant context about the user's situation — their constraints, priorities, budget, timeline, experience level, location, requirements, preferences, etc. Consolidate everything that isn't an option into context.
 3. **Expert perspectives**: For each option, suggest what type of expert would best advocate for it. Be specific and creative — not just "Tech Expert" but "Senior iOS Developer with 10 years of mobile experience" or "Financial Advisor specializing in early-career professionals". Match the expert to both the option AND the user's situation.
 
+LANGUAGE: Write every human-readable VALUE — each option "name", each "expert" description, and the "context" — in ${lang}. The JSON keys ("options", "name", "expert", "context") MUST stay in English exactly as shown; translate only the values, never the keys.
+
 You MUST respond with ONLY a valid JSON object in this exact format (no markdown, no code fences, no explanation):
 {"options":[{"name":"Option name","expert":"Expert title and specialization"}],"context":"Consolidated context string"}
 
@@ -43,6 +47,7 @@ Rules:
 - Context should capture everything relevant about the user's situation
 - If the user mentions a preference or leaning, include it in context but still create balanced options
 - Minimum 2 options, maximum 6 options
+- Every value (option names, expert descriptions, context) MUST be written in ${lang}
 - Respond with ONLY the JSON object, nothing else`;
 
   try {
@@ -75,6 +80,14 @@ Rules:
     return NextResponse.json(parsed);
   } catch (err) {
     console.error('[parse-prompt] Failed to parse:', err);
+    // Surface a real CLI/auth failure so the user can fix the actual cause
+    // instead of seeing a generic "try again" message.
+    if (err instanceof ClaudeRunnerError) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: err.isAuthError ? 401 : 502 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to analyze your decision. Please try again or use manual mode.' },
       { status: 500 }
