@@ -16,6 +16,8 @@ import TopicHighlights from '@/app/components/TopicHighlights';
 import { useAutoScroll } from '@/app/hooks/useAutoScroll';
 import { parseConfidenceScores } from '@/lib/confidence-parser';
 import { DebatePhase, DebateEvent, ExpertPerspective, SavedDebate, DebateRound } from '@/types/debate';
+import { translate as t } from '@/lib/translations';
+import { useUILang } from '@/app/hooks/useUILang';
 
 interface RoundState {
   roundNumber: number;
@@ -46,6 +48,7 @@ function DebatePageInner() {
   const promptParam = params.get('prompt') || '';
   const languageParam = params.get('language') || 'English';
   const modelParam = params.get('model') || 'sonnet';
+  const { uiLang, toggleUILang } = useUILang();
 
   const [phase, setPhase] = useState<DebatePhase>('idle');
   const [currentRound, setCurrentRound] = useState(0);
@@ -397,14 +400,14 @@ function DebatePageInner() {
   }, [id]);
 
   const phaseLabel = (): string => {
-    if (phase === 'idle') return 'Starting\u2026';
-    if (phase === 'complete') return 'Debate complete';
-    if (phase === 'verdict') return 'Judge is delivering the verdict';
-    const roundStr = `Round ${currentRound}/${maxRounds}`;
-    if (phase === 'judge_question') return `${roundStr} \u2014 Judge is asking a question`;
-    if (phase === 'advocate_response') return `${roundStr} \u2014 Advocates are responding`;
-    if (phase === 'evaluation') return `${roundStr} \u2014 Judge is evaluating`;
-    if (phase === 'user_input') return `${roundStr} \u2014 Waiting for your input`;
+    if (phase === 'idle') return t('Starting\u2026', uiLang);
+    if (phase === 'complete') return t('Debate complete', uiLang);
+    if (phase === 'verdict') return t('Judge is delivering the verdict', uiLang);
+    const r = currentRound, m = maxRounds;
+    if (phase === 'judge_question') return t('Phase round judge question', uiLang).replace('{round}', String(r)).replace('{max}', String(m));
+    if (phase === 'advocate_response') return t('Phase round advocates', uiLang).replace('{round}', String(r)).replace('{max}', String(m));
+    if (phase === 'evaluation') return t('Phase round evaluating', uiLang).replace('{round}', String(r)).replace('{max}', String(m));
+    if (phase === 'user_input') return t('Phase round waiting', uiLang).replace('{round}', String(r)).replace('{max}', String(m));
     return '';
   };
 
@@ -462,7 +465,7 @@ function DebatePageInner() {
       }),
     });
 
-    if (!res.ok) throw new Error('Failed to continue debate');
+    if (!res.ok) throw new Error(t('errorContinueFailed', uiLang));
     const { id: newId } = await res.json();
 
     // Seed the continuation page with the prior rounds so its saved record
@@ -502,7 +505,7 @@ function DebatePageInner() {
   const hasSparklineData = sparklineRounds.some((r) => r.scores !== null);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-950 dark:text-white">
       {/* Round Timeline Sidebar */}
       <RoundTimeline
         rounds={rounds.map((r) => ({
@@ -515,16 +518,29 @@ function DebatePageInner() {
       />
 
       {/* Top bar */}
-      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 bg-zinc-950/90 backdrop-blur border-b border-zinc-800">
+      <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 bg-white dark:bg-zinc-950/90 backdrop-blur border-b border-zinc-200 dark:border-zinc-800">
         <button
           onClick={() => router.push('/')}
-          className="text-sm text-zinc-400 hover:text-white transition"
+          className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white transition"
         >
-          &larr; New decision
+          &larr; {t('Back', uiLang)}
         </button>
-        <div className="flex items-center gap-2">
-          {!done && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
-          <span className="text-sm text-zinc-300">{phaseLabel()}</span>
+        <div className="flex flex-col items-center gap-1">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleUILang}
+              className="text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white transition"
+            >
+              {uiLang === 'en' ? '🇹🇷' : '🇬🇧'}
+            </button>
+            <span className="text-sm text-zinc-500">
+              {rounds.length} {t('rounds', uiLang)} &middot; {languageParam} &middot; {modelParam}
+            </span>
+          </div>
+          <span className="text-xs text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+            {!done && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+            {phaseLabel()}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           {hasSparklineData && (
@@ -539,7 +555,7 @@ function DebatePageInner() {
                     ? 'bg-green-500'
                     : i + 1 === currentRound
                     ? 'bg-amber-400 animate-pulse'
-                    : 'bg-zinc-700'
+                    : 'bg-zinc-200 dark:bg-zinc-700'
                 }`}
               />
             ))}
@@ -551,13 +567,13 @@ function DebatePageInner() {
         {/* Verdict card (shown when verdict phase starts) */}
         {(verdictStreaming || verdict) && (
           <div ref={verdictRef}>
-            <VerdictCard text={verdict} isStreaming={verdictStreaming} />
+            <VerdictCard text={verdict} isStreaming={verdictStreaming} lang={uiLang} />
           </div>
         )}
 
         {/* Continue Mode — challenge the verdict */}
         {done && verdict && (
-          <ChallengeVerdictCard onContinue={handleContinueDebate} />
+          <ChallengeVerdictCard onContinue={handleContinueDebate} lang={uiLang} />
         )}
 
         {/* Rounds timeline */}
@@ -576,6 +592,7 @@ function DebatePageInner() {
                 maxRounds={maxRounds}
                 isCurrentRound={isCurrentRound}
                 judgeQuestion={round.judgeQuestion}
+                lang={uiLang}
               >
                 <div className="space-y-4">
                   <JudgeQuestionCard
@@ -583,6 +600,7 @@ function DebatePageInner() {
                     maxRounds={maxRounds}
                     question={round.judgeQuestion}
                     isStreaming={round.judgeQuestionStreaming}
+                    lang={uiLang}
                   />
 
                   {(round.judgeQuestionDone || round.responses.some((r) => r.length > 0)) && (
@@ -600,6 +618,7 @@ function DebatePageInner() {
                           isActive={agentsActive[i] && currentRound === round.roundNumber}
                           isDone={round.responseDone[i]}
                           expertLabel={expertMap.get(option)}
+                          lang={uiLang}
                         />
                       ))}
                     </div>
@@ -618,6 +637,7 @@ function DebatePageInner() {
                       text={round.evaluationText}
                       isStreaming={round.evaluationStreaming}
                       decision={round.evaluationDecision}
+                      lang={uiLang}
                     />
                   )}
 
@@ -628,6 +648,7 @@ function DebatePageInner() {
                       onSubmit={(input) => handleUserInputSubmit(round.roundNumber, input)}
                       isSubmitted={!!round.userClarificationAnswer}
                       submittedAnswer={round.userClarificationAnswer}
+                      lang={uiLang}
                     />
                   )}
                 </div>
@@ -641,9 +662,9 @@ function DebatePageInner() {
           <div className="text-center pt-4 pb-16">
             <button
               onClick={() => router.push('/')}
-              className="px-6 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-200 transition"
+              className="px-6 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-sm text-zinc-800 dark:text-zinc-200 transition"
             >
-              Start a new debate
+              {t('Start a new debate', uiLang)}
             </button>
           </div>
         )}
@@ -655,6 +676,7 @@ function DebatePageInner() {
         currentRound={currentRound}
         maxRounds={maxRounds}
         activeAgentCount={activeAgentCount}
+        lang={uiLang}
       />
     </div>
   );

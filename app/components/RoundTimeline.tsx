@@ -35,7 +35,7 @@ export default function RoundTimeline({
       {/* Dots with connecting line */}
       <div className="relative flex flex-col items-center gap-2">
         {/* Connecting line */}
-        <div className="absolute top-1 bottom-1 w-px bg-zinc-800" />
+        <div className="absolute top-1 bottom-1 w-px bg-zinc-100 dark:bg-zinc-800" />
 
         {Array.from({ length: maxRounds }, (_, i) => {
           const roundNum = i + 1;
@@ -57,15 +57,15 @@ export default function RoundTimeline({
                     ? 'bg-green-500 hover:bg-green-400 cursor-pointer'
                     : isCurrent
                     ? 'bg-amber-400 animate-pulse cursor-pointer'
-                    : 'bg-zinc-700 cursor-default'
+                    : 'bg-zinc-200 dark:bg-zinc-700 cursor-default'
                 }`}
               />
 
               {/* Tooltip */}
               {truncated && (
                 <div className="absolute left-6 top-1/2 -translate-y-1/2 hidden group-hover:block">
-                  <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-300 max-w-60 whitespace-normal shadow-xl">
-                    <span className="font-semibold text-zinc-100">R{roundNum}:</span>{' '}
+                  <div className="bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 max-w-60 whitespace-normal shadow-xl">
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">R{roundNum}:</span>{' '}
                     {truncated}
                   </div>
                 </div>

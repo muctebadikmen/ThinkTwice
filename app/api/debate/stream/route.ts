@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
       // Client disconnected. Don't abort immediately — EventSource reconnects on
       // transient blips and fires cancel() too. Defer the abort; if a new consumer
       // connects within the grace window, start() clears this timer. Only a truly
-      // abandoned debate is aborted, killing its in-flight claude subprocesses.
+      // abandoned debate is aborted, killing its in-flight model requests.
       const entry = debateStore.get(id);
       if (!entry || entry.done) return;
       if (entry.abortTimer) clearTimeout(entry.abortTimer);

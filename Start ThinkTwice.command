@@ -7,7 +7,7 @@
 
 cd "$(dirname "$0")" || exit 1
 
-# Make sure node / npm / claude are findable when launched from Finder
+# Make sure node / npm are findable when launched from Finder
 # (Finder gives apps a minimal PATH).
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 

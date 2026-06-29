@@ -31,14 +31,14 @@ export default function TopicHighlights({
   if (!isRoundComplete || topics.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 overflow-hidden">
       {/* Toggle button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-zinc-800/50 transition"
+        className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition"
       >
         <span className="text-xs">🔀</span>
-        <span className="text-xs font-medium text-zinc-400">
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
           View topic comparison ({topics.length} topic{topics.length !== 1 ? 's' : ''})
         </span>
         <svg
@@ -99,7 +99,7 @@ function TopicRow({
               <p className={`text-[10px] font-bold ${color.text} mb-1 truncate`}>
                 {pos.option}
               </p>
-              <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed line-clamp-3">
                 {pos.summary}
               </p>
             </div>

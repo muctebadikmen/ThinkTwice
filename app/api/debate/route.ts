@@ -14,7 +14,7 @@ export const debateStore = new Map<
     resolve: (() => void) | null;  // notifies waiting stream consumers
     userInputResolve: ((input: string) => void) | null;  // resolves user input promise
     waitingForUserInput: boolean;  // flag for input endpoint
-    abortController: AbortController;  // cancels in-flight claude subprocesses
+    abortController: AbortController;  // cancels in-flight model requests
     abortTimer: ReturnType<typeof setTimeout> | null;  // deferred abort after client disconnect
   }
 >();

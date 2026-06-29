@@ -1,6 +1,7 @@
 'use client';
 
 import MarkdownContent from '@/app/components/MarkdownContent';
+import { translate as t } from '@/lib/translations';
 
 interface AgentPanelProps {
   option: string;
@@ -10,6 +11,7 @@ interface AgentPanelProps {
   isActive: boolean;
   isDone: boolean;
   expertLabel?: string;
+  lang: string;
 }
 
 const COLORS = [
@@ -31,57 +33,48 @@ function StreamingDot({ active }: { active: boolean }) {
 }
 
 export default function AgentPanel({
-  option,
-  index,
-  roundNumber,
-  responseText,
-  isActive,
-  isDone,
-  expertLabel,
+  option, index, roundNumber, responseText, isActive, isDone, expertLabel, lang,
 }: AgentPanelProps) {
   const color = COLORS[index % COLORS.length];
 
   const statusLabel = isActive
-    ? 'Researching & responding…'
+    ? t('Searching the web and forming response…', lang)
     : isDone
-    ? 'Response submitted'
-    : 'Waiting for judge\'s question…';
+    ? t('Response submitted', lang)
+    : t("Waiting for judge's question…", lang);
 
   return (
-    <div className={`flex flex-col rounded-2xl border ${color.border} bg-zinc-900 overflow-hidden`}>
-      {/* Header */}
+    <div className={`flex flex-col rounded-2xl border ${color.border} bg-zinc-50 dark:bg-zinc-900 overflow-hidden`}>
       <div className={`flex items-center gap-3 px-4 py-3 ${color.header}`}>
-        <span className={`text-xs font-bold text-white px-2 py-0.5 rounded-full ${color.badge}`}>
-          Advocate {index + 1}
+        <span className={`text-xs font-bold text-zinc-950 dark:text-white px-2 py-0.5 rounded-full ${color.badge}`}>
+          {t('Advocate', lang)} {index + 1}
         </span>
-        <span className="font-semibold text-white truncate">{option}</span>
+        <span className="font-semibold text-zinc-950 dark:text-white truncate">{option}</span>
         <StreamingDot active={isActive} />
         {expertLabel && (
-          <span className="ml-auto text-[10px] text-zinc-400 truncate max-w-[200px]" title={expertLabel}>
+          <span className="ml-auto text-[10px] text-zinc-600 dark:text-zinc-400 truncate max-w-[200px]" title={expertLabel}>
             {expertLabel}
           </span>
         )}
       </div>
 
-      {/* Status bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800">
-        <span className={`w-2 h-2 rounded-full ${isActive ? `${color.dot} animate-pulse` : isDone ? 'bg-green-500' : 'bg-zinc-600'}`} />
-        <span className="text-xs text-zinc-400">{statusLabel}</span>
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
+        <span className={`w-2 h-2 rounded-full ${isActive ? `${color.dot} animate-pulse` : isDone ? 'bg-green-500' : 'bg-zinc-300 dark:bg-zinc-600'}`} />
+        <span className="text-xs text-zinc-600 dark:text-zinc-400">{statusLabel}</span>
       </div>
 
-      {/* Content */}
       <div className="flex-1 p-4 overflow-y-auto max-h-[50vh]">
         {!responseText && !isActive && !isDone && (
-          <p className="text-xs text-zinc-600 italic">Waiting for judge&apos;s question…</p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-600 italic">{t("Waiting for judge's question…", lang)}</p>
         )}
         {!responseText && isDone && (
-          <p className="text-xs text-zinc-500 italic">Response was not captured for this round.</p>
+          <p className="text-xs text-zinc-500 italic">{t('Response was not captured for this round.', lang)}</p>
         )}
         {responseText && (
           <MarkdownContent content={responseText} enableCitations />
         )}
         {isActive && !responseText && (
-          <p className="text-xs text-zinc-500 italic">Searching the web and forming response…</p>
+          <p className="text-xs text-zinc-500 italic">{t('Searching the web and forming response…', lang)}</p>
         )}
       </div>
     </div>

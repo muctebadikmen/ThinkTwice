@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runClaude, ClaudeRunnerError } from '@/lib/claude-runner';
+import { runClaude, ClaudeRunnerError } from '@/lib/model-runner';
 
 /**
  * POST /api/parse-prompt

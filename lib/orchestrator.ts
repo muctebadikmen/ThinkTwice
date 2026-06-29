@@ -1,4 +1,4 @@
-import { runClaude } from './claude-runner';
+import { runClaude } from './model-runner';
 import {
   judgeQuestionPrompt,
   advocateResponsePrompt,

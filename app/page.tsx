@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ExpertPerspective } from '@/types/debate';
+import { translate as t, type TKey } from '@/lib/translations';
+import { useUILang } from '@/app/hooks/useUILang';
 
 type InputMode = 'smart' | 'manual';
 
@@ -29,10 +31,26 @@ export default function Home() {
 
   // Shared state
   const [language, setLanguage] = useState('English');
+  const { uiLang, toggleUILang } = useUILang();
   const [model, setModel] = useState('sonnet');
+  const [customModel, setCustomModel] = useState('');
+  const [availableModels, setAvailableModels] = useState<{ id: string; name: string }[]>([]);
   const [autoMode, setAutoMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // ── Fetch OpenRouter models on mount ──
+  useEffect(() => {
+    fetch('/api/models')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.models?.length) {
+          setAvailableModels(data.models);
+          if (model === 'sonnet') setModel(data.models[0].id); // ponytail: don't overwrite user selection
+        }
+      })
+      .catch(() => {}); // silent — dropdown stays empty, custom input fallback
+  }, []);
 
   // ── Manual mode helpers ──
   const addOption = () => {
@@ -51,7 +69,7 @@ export default function Home() {
   // ── Smart mode: parse prompt ──
   const handleParsePrompt = async () => {
     if (prompt.trim().length < 10) {
-      setError('Please describe your decision in more detail.');
+      setError(t('errorNeedMoreDetail', uiLang));
       return;
     }
 
@@ -59,16 +77,18 @@ export default function Home() {
     setError('');
     setParsedOptions(null);
 
+    const effectiveModel = model === '__custom__' ? customModel.trim() || 'deepseek-chat' : model;
+
     try {
       const res = await fetch('/api/parse-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim(), language, model }),
+        body: JSON.stringify({ prompt: prompt.trim(), language, model: effectiveModel }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to analyze your decision');
+        throw new Error(data.error || t('errorAnalyzeFailed', uiLang));
       }
 
       const data = await res.json() as { options: ParsedOption[]; context: string };
@@ -104,7 +124,7 @@ export default function Home() {
 
     if (mode === 'smart') {
       if (!parsedOptions || parsedOptions.length < 2) {
-        setError('Please analyze your decision first.');
+        setError(t('errorAnalyzeFirst', uiLang));
         return;
       }
       finalOptions = parsedOptions.map((o) => o.name);
@@ -113,12 +133,14 @@ export default function Home() {
     } else {
       const filled = options.map((o) => o.trim()).filter(Boolean);
       if (filled.length < 2) {
-        setError('Please fill in at least 2 options.');
+        setError(t('errorNeedTwoOptions', uiLang));
         return;
       }
       finalOptions = filled;
       finalContext = context.trim();
     }
+
+    const effectiveModel = model === '__custom__' ? customModel.trim() || 'deepseek-chat' : model;
 
     setLoading(true);
     setError('');
@@ -131,13 +153,13 @@ export default function Home() {
           options: finalOptions,
           context: finalContext,
           language,
-          model,
+          model: effectiveModel,
           experts,
           autoMode,
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to start debate');
+      if (!res.ok) throw new Error(t('errorStartFailed', uiLang));
       const { id } = await res.json();
 
       // Encode experts in URL params for the debate page
@@ -151,8 +173,8 @@ export default function Home() {
       if (prompt.trim()) {
         params.set('prompt', prompt.trim());
       }
-      params.set('language', language);
-      params.set('model', model);
+      params.set("language", language);
+      params.set('model', effectiveModel);
 
       router.push(`/debate?${params.toString()}`);
     } catch (err) {
@@ -187,31 +209,37 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center px-4 py-16">
+    <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-950 dark:text-white flex flex-col items-center justify-center px-4 py-16">
       <div className="w-full max-w-xl space-y-8">
         {/* Hero */}
-        <div className="text-center space-y-3">
-          <div className="text-5xl mb-2">&#x2696;&#xFE0F;</div>
-          <h1 className="text-3xl font-bold tracking-tight">Think Twice</h1>
-          <p className="text-zinc-400 text-sm leading-relaxed">
-            Can&apos;t decide? AI agents will research and debate each option, then a judge will tell
-            you which wins &mdash; with solid reasoning.
+        <div className="text-center space-y-3 relative">
+          <button
+            onClick={toggleUILang}
+            className="absolute top-0 right-0 text-xs px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white transition"
+            title={uiLang === 'en' ? 'Türkçe\'ye geç' : 'Switch to English'}
+          >
+            {uiLang === 'en' ? '🇹🇷 TR' : '🇬🇧 EN'}
+          </button>
+          <div className="text-6xl mb-2">⚖️</div>
+          <h1 className="text-3xl font-bold tracking-tight">{t('Think Twice', uiLang)}</h1>
+          <p className="text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed">
+            {t('heroDesc', uiLang)}
           </p>
         </div>
 
         {/* Mode Toggle */}
         <div className="flex items-center justify-center">
-          <div className="inline-flex rounded-xl bg-zinc-800 p-1">
+          <div className="inline-flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">
             <button
               type="button"
               onClick={() => { setMode('smart'); setError(''); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
                 mode === 'smart'
                   ? 'bg-white text-black'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
               }`}
             >
-              Smart Mode
+              {t('Smart Mode', uiLang)}
             </button>
             <button
               type="button"
@@ -219,10 +247,10 @@ export default function Home() {
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
                 mode === 'manual'
                   ? 'bg-white text-black'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
               }`}
             >
-              Manual Mode
+              {t('Manual Mode', uiLang)}
             </button>
           </div>
         </div>
@@ -235,19 +263,19 @@ export default function Home() {
             <>
               {/* Big textarea prompt */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                  Describe your decision
+                <label className="text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                  {t('Describe your decision', uiLang)}
                 </label>
                 <textarea
                   value={prompt}
                   onChange={(e) => { setPrompt(e.target.value); setParsedOptions(null); }}
-                  placeholder={"e.g. I'm a CS student trying to decide between going to grad school, getting a job at a startup, or freelancing. I have $20k in savings, no debt, and I value work-life balance. I'm based in Berlin and would prefer to stay in Europe."}
+                  placeholder={t('smartPlaceholder', uiLang)}
                   rows={5}
                   disabled={parsing || loading}
-                  className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition resize-y disabled:opacity-50"
+                  className="w-full rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition resize-y disabled:opacity-50"
                 />
                 <p className="text-[10px] text-zinc-500">
-                  Just explain what you&apos;re deciding. AI will figure out the options, context, and assign expert advocates.
+                  {t('smartHint', uiLang)}
                 </p>
               </div>
 
@@ -255,29 +283,29 @@ export default function Home() {
               {parsedOptions && (
                 <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                      Options &amp; Expert Advocates
+                    <label className="text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                      {t('Options & Expert Advocates', uiLang)}
                     </label>
-                    <span className="text-[10px] text-zinc-500">Edit any field before starting</span>
+                    <span className="text-[10px] text-zinc-500">{t('Edit any field before starting', uiLang)}</span>
                   </div>
 
                   {parsedOptions.map((opt, i) => (
                     <div key={i} className={`rounded-xl border p-3 space-y-2 ${expertColors[i % expertColors.length]}`}>
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center w-6 h-6 rounded-md bg-zinc-800 text-[10px] font-bold text-zinc-400 shrink-0">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-md bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold text-zinc-600 dark:text-zinc-400 shrink-0">
                           {String.fromCharCode(65 + i)}
                         </div>
                         <input
                           type="text"
                           value={opt.name}
                           onChange={(e) => updateParsedOption(i, 'name', e.target.value)}
-                          className="flex-1 h-8 rounded-lg bg-zinc-800/80 border border-zinc-700/50 px-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
+                          className="flex-1 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/50 px-2.5 text-sm text-zinc-950 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
                         />
                         {parsedOptions.length > 2 && (
                           <button
                             type="button"
                             onClick={() => removeParsedOption(i)}
-                            className="w-8 h-8 rounded-lg bg-zinc-800/80 hover:bg-red-900/40 text-zinc-400 hover:text-red-400 text-sm transition shrink-0"
+                            className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800/80 hover:bg-red-900/40 text-zinc-600 dark:text-zinc-400 hover:text-red-400 text-sm transition shrink-0"
                           >
                             &times;
                           </button>
@@ -285,13 +313,13 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-2 pl-8">
                         <span className={`text-[10px] font-semibold uppercase tracking-widest ${expertTextColors[i % expertTextColors.length]} shrink-0`}>
-                          Expert
+                          {t('Expert', uiLang)}
                         </span>
                         <input
                           type="text"
                           value={opt.expert}
                           onChange={(e) => updateParsedOption(i, 'expert', e.target.value)}
-                          className="flex-1 h-7 rounded-lg bg-zinc-800/60 border border-zinc-700/30 px-2.5 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
+                          className="flex-1 h-7 rounded-lg bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/30 px-2.5 text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
                         />
                       </div>
                     </div>
@@ -299,14 +327,14 @@ export default function Home() {
 
                   {/* Parsed context (editable) */}
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                      Extracted Context
+                    <label className="text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                      {t('Extracted Context', uiLang)}
                     </label>
                     <textarea
                       value={parsedContext}
                       onChange={(e) => setParsedContext(e.target.value)}
                       rows={2}
-                      className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition resize-y"
+                      className="w-full rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-xs text-zinc-700 dark:text-zinc-300 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition resize-y"
                     />
                   </div>
                 </div>
@@ -319,13 +347,13 @@ export default function Home() {
             <>
               {/* Options */}
               <div className="space-y-3">
-                <label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                  Options to compare
+                <label className="text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                  {t('Options to compare', uiLang)}
                 </label>
 
                 {options.map((opt, i) => (
                   <div key={i} className="flex gap-2">
-                    <div className="flex items-center justify-center w-8 h-10 rounded-lg bg-zinc-800 text-xs font-bold text-zinc-400 shrink-0">
+                    <div className="flex items-center justify-center w-8 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-bold text-zinc-600 dark:text-zinc-400 shrink-0">
                       {String.fromCharCode(65 + i)}
                     </div>
                     <input
@@ -333,13 +361,13 @@ export default function Home() {
                       value={opt}
                       onChange={(e) => updateOption(i, e.target.value)}
                       placeholder={placeholders[i] ?? `Option ${i + 1}`}
-                      className="flex-1 h-10 rounded-xl bg-zinc-800 border border-zinc-700 px-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
+                      className="flex-1 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 text-sm text-zinc-950 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
                     />
                     {options.length > 2 && (
                       <button
                         type="button"
                         onClick={() => removeOption(i)}
-                        className="w-10 h-10 rounded-xl bg-zinc-800 hover:bg-red-900/40 text-zinc-400 hover:text-red-400 text-lg transition shrink-0"
+                        className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-red-900/40 text-zinc-600 dark:text-zinc-400 hover:text-red-400 text-lg transition shrink-0"
                       >
                         &times;
                       </button>
@@ -351,24 +379,24 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={addOption}
-                    className="w-full h-9 rounded-xl border border-dashed border-zinc-700 text-sm text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition"
+                    className="w-full h-9 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-700 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-500 transition"
                   >
-                    + Add another option
+                    {t('Add another option', uiLang)}
                   </button>
                 )}
               </div>
 
               {/* Context */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                  Context <span className="font-normal normal-case text-zinc-500">(optional)</span>
+                <label className="text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                  {t('Context', uiLang)} <span className="font-normal normal-case text-zinc-500">({t('optional', uiLang)})</span>
                 </label>
                 <textarea
                   value={context}
                   onChange={(e) => setContext(e.target.value)}
-                  placeholder="e.g. I'm a developer on a tight budget who prioritizes battery life for travel..."
+                  placeholder={t('contextPlaceholder', uiLang)}
                   rows={3}
-                  className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition resize-none"
+                  className="w-full rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 py-2.5 text-sm text-zinc-950 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition resize-none"
                 />
               </div>
             </>
@@ -378,13 +406,13 @@ export default function Home() {
           <div className="grid grid-cols-2 gap-3">
             {/* Language */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                Language
+              <label className="text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                {t('Language', uiLang)}
               </label>
               <select
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="w-full h-10 rounded-xl bg-zinc-800 border border-zinc-700 px-3 text-sm text-white focus:outline-none focus:border-zinc-500 transition appearance-none cursor-pointer"
+                className="w-full h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 text-sm text-zinc-950 dark:text-white focus:outline-none focus:border-zinc-500 transition appearance-none cursor-pointer"
               >
                 <option value="English">&#x1F1EC;&#x1F1E7; English</option>
                 <option value="Turkish">&#x1F1F9;&#x1F1F7; T&uuml;rk&ccedil;e</option>
@@ -405,28 +433,41 @@ export default function Home() {
 
             {/* Model */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                Model
+              <label className="text-xs font-semibold uppercase tracking-widest text-zinc-600 dark:text-zinc-400">
+                {t('Model', uiLang)}
               </label>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full h-10 rounded-xl bg-zinc-800 border border-zinc-700 px-3 text-sm text-white focus:outline-none focus:border-zinc-500 transition appearance-none cursor-pointer"
+                className="w-full h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 text-sm text-zinc-950 dark:text-white focus:outline-none focus:border-zinc-500 transition appearance-none cursor-pointer"
               >
-                <option value="fable" disabled>Fable 5 (Newest &mdash; currently unavailable)</option>
-                <option value="opus">Opus 4.8 (Best quality, slower)</option>
-                <option value="sonnet">Sonnet 4.6 (Fast &amp; capable)</option>
-                <option value="haiku">Haiku 4.5 (Fastest, lighter)</option>
+                {availableModels.length === 0 && (
+                  <option disabled>{t('Loading models…', uiLang)}</option>
+                )}
+                {availableModels.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+                <option disabled className="text-zinc-400 dark:text-zinc-600">──────────────</option>
+                <option value="__custom__">{t('Custom model…', uiLang)}</option>
               </select>
+                {model === '__custom__' && (
+                  <input
+                    type="text"
+                    value={customModel}
+                    onChange={(e) => setCustomModel(e.target.value)}
+                    placeholder={t('customPlaceholder', uiLang)}
+                    className="mt-2 w-full h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-3 text-sm text-zinc-950 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
+                  />
+                )}
             </div>
           </div>
 
           {/* Auto-pilot toggle */}
-          <div className="flex items-center justify-between rounded-xl bg-zinc-800/50 border border-zinc-700/50 px-4 py-3">
+          <div className="flex items-center justify-between rounded-xl bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50 px-4 py-3">
             <div className="space-y-0.5">
-              <p className="text-sm font-medium text-zinc-200">Auto-pilot mode</p>
+              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('Auto-pilot mode', uiLang)}</p>
               <p className="text-[10px] text-zinc-500 leading-relaxed">
-                Skip all mid-debate questions &mdash; the judge will never pause to ask you for clarification
+                {t('autoPilotDesc', uiLang)}
               </p>
             </div>
             <button
@@ -435,7 +476,7 @@ export default function Home() {
               aria-checked={autoMode}
               onClick={() => setAutoMode(!autoMode)}
               className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                autoMode ? 'bg-amber-500' : 'bg-zinc-600'
+                autoMode ? 'bg-amber-500' : 'bg-zinc-300 dark:bg-zinc-600'
               }`}
             >
               <span
@@ -455,16 +496,15 @@ export default function Home() {
             <button
               type="submit"
               disabled={parsing || prompt.trim().length < 10}
-              className="w-full h-11 rounded-xl bg-white text-black font-semibold text-sm hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="w-full h-11 rounded-xl font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition
+                bg-zinc-950 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100"
             >
               {parsing ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-zinc-400 border-t-black rounded-full animate-spin" />
-                  Analyzing your decision...
+                  {t('Analyzing your decision...', uiLang)}
                 </span>
-              ) : (
-                'Analyze & Set Up Debate'
-              )}
+              ) : t('Analyze & Set Up Debate', uiLang)}
             </button>
           )}
 
@@ -473,16 +513,17 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setParsedOptions(null)}
-                className="flex-1 h-11 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-sm hover:bg-zinc-700 transition"
+                className="flex-1 h-11 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold text-sm hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
               >
-                Re-analyze
+                {t('Re-analyze', uiLang)}
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-[2] h-11 rounded-xl bg-white text-black font-semibold text-sm hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="flex-[2] h-11 rounded-xl font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition
+                  bg-zinc-950 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100"
               >
-                {loading ? 'Starting debate...' : 'Start Debate with Experts \u2192'}
+                {loading ? t('Starting debate...', uiLang) : t('Start Debate with Experts →', uiLang)}
               </button>
             </div>
           )}
@@ -491,27 +532,28 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 rounded-xl bg-white text-black font-semibold text-sm hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="w-full h-11 rounded-xl font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition
+                bg-zinc-950 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100"
             >
-              {loading ? 'Starting debate...' : 'Start Debate \u2192'}
+              {loading ? t('Starting debate...', uiLang) : t('Start Debate →', uiLang)}
             </button>
           )}
         </form>
 
         {/* How it works */}
-        <div className="border-t border-zinc-800 pt-6 space-y-3">
+        <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 text-center">
-            How it works
+            {t('How it works', uiLang)}
           </p>
           <div className="grid grid-cols-3 gap-3 text-center">
             {[
-              { icon: '\uD83D\uDD0D', label: 'Step 1', desc: mode === 'smart' ? 'Describe your decision \u2014 AI figures out options & assigns expert advocates' : 'A judge asks a focused question to compare your options' },
-              { icon: '\u2694\uFE0F', label: 'Step 2', desc: 'Expert advocates research & argue their case with real evidence' },
-              { icon: '\u2696\uFE0F', label: 'Step 3', desc: 'Judge evaluates, asks follow-ups, then picks a winner. Not satisfied? Continue the debate.' },
+              { icon: '\uD83D\uDD0D', label: t('Step 1', uiLang), desc: mode === 'smart' ? t('step1Smart', uiLang) : t('step1Manual', uiLang) },
+              { icon: '\u2694\uFE0F', label: t('Step 2', uiLang), desc: t('step2', uiLang) },
+              { icon: '\u2696\uFE0F', label: t('Step 3', uiLang), desc: t('step3', uiLang) },
             ].map((step) => (
               <div key={step.label} className="space-y-1.5">
                 <div className="text-2xl">{step.icon}</div>
-                <p className="text-xs font-semibold text-zinc-300">{step.label}</p>
+                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{step.label}</p>
                 <p className="text-xs text-zinc-500 leading-relaxed">{step.desc}</p>
               </div>
             ))}
@@ -521,10 +563,10 @@ export default function Home() {
         {/* History link */}
         <div className="text-center">
           <button
-            onClick={() => router.push('/history')}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition underline underline-offset-2"
+            onClick={() => router.push(`/history?lang=${encodeURIComponent(language)}`)}
+            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition underline underline-offset-2"
           >
-            View past debates
+            {t('View past debates', uiLang)}
           </button>
         </div>
       </div>

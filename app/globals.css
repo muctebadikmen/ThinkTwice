@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@variant dark (&:where(.dark, .dark *), @media (prefers-color-scheme: dark));
 
 :root {
   --background: #ffffff;
@@ -12,8 +13,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+/* ponytail: keep media query as fallback when no .dark class set */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
